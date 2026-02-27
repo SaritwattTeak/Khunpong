@@ -2,21 +2,35 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Tuple
 
+from sqlmodel import Session, select
+
 from .constants import (
     STAR_SYSTEMS, TELESCOPE_LOCATIONS, FILE_TYPES, FILE_QUALITIES, IMAGE_MODES,
     CALIBRATION_UNITS, LIGHT_TYPES, FOLD_MIRROR_TYPES, DIRECTIONS
 )
-from .models import SciencePlan, ObservingProgram
+from .models import SciencePlan, StarSystem
+from .data_schema import engine
+
+
+def _get_star_system_name(star_system_id: int | None) -> str | None:
+    """Resolve a StarSystem FK id back to its name string."""
+    if star_system_id is None:
+        return None
+    with Session(engine) as session:
+        star = session.get(StarSystem, star_system_id)
+        return star.name if star else None
+
 
 def validate_science_plan_fields(data: dict) -> Tuple[bool, List[str]]:
     errors: List[str] = []
 
     required = [
-        "creator", "submitter", "funding", "objective",
-        "star_system", "schedule_start", "schedule_end",
-        "telescope_location",
-        "file_type", "file_quality",
-        "image_mode", "exposure", "contrast", "brightness", "saturation"
+    "creator", "submitter", "funding", "objective",
+    "star_system_id",
+    "schedule_start", "schedule_end",
+    "telescope_location",
+    "file_type", "file_quality",
+    "image_mode", "exposure", "contrast", "brightness", "saturation"
     ]
     for k in required:
         if k not in data or data[k] in (None, "", []):
@@ -27,8 +41,7 @@ def validate_science_plan_fields(data: dict) -> Tuple[bool, List[str]]:
     if len(obj) > 500:
         errors.append("Objective must be <= 500 characters.")
 
-    if data.get("star_system") and data["star_system"] not in STAR_SYSTEMS:
-        errors.append("Star system must be selected from the provided list.")
+
 
     if data.get("telescope_location") and data["telescope_location"] not in TELESCOPE_LOCATIONS:
         errors.append("Telescope location must be Hawaii or Chile.")
@@ -71,19 +84,24 @@ def validate_science_plan_fields(data: dict) -> Tuple[bool, List[str]]:
 
     return (len(errors) == 0), errors
 
+
 def run_virtual_telescope_validation(plan: SciencePlan) -> Tuple[bool, str]:
-    """UC-02: Simulated/virtual telescope validation.
-    Validates only requirements that exist in the data specification / use cases.
-    """
-    ok, errors = validate_science_plan_fields(plan.model_dump())
+    data = plan.model_dump()
+
+    ok, errors = validate_science_plan_fields(data)
     if not ok:
         return False, "Invalid: " + "; ".join(errors)
 
     return True, "Valid: Plan passed validation checks."
 
+
 def validate_observing_program_fields(data: dict) -> Tuple[bool, List[str]]:
     errors: List[str] = []
-    required = ["calibration_unit", "light_type", "fold_mirror_type", "teleposition_degree", "teleposition_direction"]
+
+    required = [
+        "calibration_unit", "light_type", "fold_mirror_type",
+        "teleposition_degree", "teleposition_direction"
+    ]
     for k in required:
         if k not in data or data[k] in (None, "", []):
             errors.append(f"Missing required field: {k}")

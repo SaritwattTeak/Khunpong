@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlmodel import SQLModel, Session, create_engine, select
 
-from models import StarSystem
+from .models import StarSystem
 
 DB_URL = "sqlite:///./gemini.db"
 engine = create_engine(DB_URL, echo=False)
