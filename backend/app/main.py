@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from .database import create_db_and_tables, get_session
+from .data_schema import create_db_and_tables, get_session
 from .models import SciencePlan, ValidationResult, ObservingProgram
 from .constants import (
     STAR_SYSTEMS, TELESCOPE_LOCATIONS, FILE_TYPES, FILE_QUALITIES, IMAGE_MODES,
