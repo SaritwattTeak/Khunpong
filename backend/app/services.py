@@ -73,18 +73,13 @@ def validate_science_plan_fields(data: dict) -> Tuple[bool, List[str]]:
 
 def run_virtual_telescope_validation(plan: SciencePlan) -> Tuple[bool, str]:
     """UC-02: Simulated/virtual telescope validation.
-    For this prototype we validate operational/safety constraints deterministically.
+    Validates only requirements that exist in the data specification / use cases.
     """
     ok, errors = validate_science_plan_fields(plan.model_dump())
     if not ok:
         return False, "Invalid: " + "; ".join(errors)
 
-    # Example operational rule: very long observation (over 24h) is not allowed in this prototype.
-    duration_hours = (plan.schedule_end - plan.schedule_start).total_seconds() / 3600.0
-    if duration_hours > 24:
-        return False, "Invalid: Observation duration exceeds 24 hours (prototype constraint)."
-
-    return True, "Valid: Plan passed virtual telescope checks."
+    return True, "Valid: Plan passed validation checks."
 
 def validate_observing_program_fields(data: dict) -> Tuple[bool, List[str]]:
     errors: List[str] = []
