@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h3 class="m-0">Science Plans</h3>
+  <a class="btn btn-primary" href="/plans/new">+ New Plan</a>
+</div>
+
+{% if plans|length == 0 %}
+  <div class="alert alert-info">No plans yet. Create your first science plan.</div>
+{% else %}
+  <div class="list-group">
+  {% for p in plans %}
+    <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" href="/plans/{{p.id}}">
+      <div>
+        <div class="fw-semibold">{{ p.star_system }} — {{ p.objective[:60] }}{% if p.objective|length > 60 %}…{% endif %}</div>
+        <div class="small text-muted">Creator: {{ p.creator }} | Status: {{ p.status }} | Created: {{ p.created_at }}</div>
+      </div>
+      <span class="badge bg-secondary">#{{ p.id }}</span>
+    </a>
+  {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

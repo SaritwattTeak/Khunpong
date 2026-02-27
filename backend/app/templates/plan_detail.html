@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between">
+  <div>
+    <h3 class="m-0">Science Plan #{{ plan.id }}</h3>
+    <div class="text-muted">Status: <span class="fw-semibold">{{ plan.status }}</span></div>
+  </div>
+  <div class="d-flex gap-2">
+    <form method="post" action="/plans/{{plan.id}}/validate">
+      <button class="btn btn-warning" type="submit">Validate (UC-02)</button>
+    </form>
+    <a class="btn btn-success" href="/plans/{{plan.id}}/submit">Submit Program (UC-03)</a>
+  </div>
+</div>
+
+<hr/>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="fw-semibold mb-2">Plan Details</div>
+      <div><span class="text-muted">Creator:</span> {{ plan.creator }}</div>
+      <div><span class="text-muted">Submitter:</span> {{ plan.submitter }}</div>
+      <div><span class="text-muted">Funding:</span> {{ plan.funding }}</div>
+      <div><span class="text-muted">Objective:</span> {{ plan.objective }}</div>
+      <div><span class="text-muted">Star system:</span> {{ plan.star_system }}</div>
+      <div><span class="text-muted">Schedule:</span> {{ plan.schedule_start }} → {{ plan.schedule_end }}</div>
+      <div><span class="text-muted">Telescope:</span> {{ plan.telescope_location }}</div>
+      <div class="mt-2"><span class="text-muted">Processing:</span> {{ plan.file_type }} / {{ plan.file_quality }} / {{ plan.image_mode }}</div>
+      <div class="text-muted small">Exposure {{ plan.exposure }}, Contrast {{ plan.contrast }}, Brightness {{ plan.brightness }}, Saturation {{ plan.saturation }}</div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card p-3">
+      <div class="fw-semibold mb-2">Validation Results</div>
+      {% if results|length == 0 %}
+        <div class="text-muted">No validation results yet. Click “Validate”.</div>
+      {% else %}
+        <ul class="list-group">
+          {% for r in results %}
+            <li class="list-group-item">
+              <div class="d-flex justify-content-between">
+                <div class="fw-semibold">
+                  {% if r.is_valid %}<span class="text-success">VALID</span>{% else %}<span class="text-danger">INVALID</span>{% endif %}
+                </div>
+                <div class="small text-muted">{{ r.created_at }}</div>
+              </div>
+              <div class="small">{{ r.message }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="card p-3 mt-3">
+      <div class="fw-semibold mb-2">Observing Program</div>
+      {% if program %}
+        <div><span class="text-muted">Status:</span> {{ program.status }}</div>
+        <div><span class="text-muted">Calibration unit:</span> {{ program.calibration_unit }}</div>
+        <div><span class="text-muted">Light type:</span> {{ program.light_type }}</div>
+        <div><span class="text-muted">Fold mirror:</span> {{ program.fold_mirror_type }}</div>
+        <div><span class="text-muted">Teleposition:</span> {{ program.teleposition_degree }}° {{ program.teleposition_direction }}</div>
+        <div class="small text-muted">Submitted at {{ program.submitted_at }}</div>
+      {% else %}
+        <div class="text-muted">Not submitted yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

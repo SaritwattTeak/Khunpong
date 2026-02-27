@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Submit Observing Program (UC-03) — Plan #{{ plan.id }}</h3>
+
+{% if errors and errors|length > 0 %}
+  <div class="alert alert-danger">
+    <div class="fw-semibold mb-1">Please fix these errors:</div>
+    <ul class="mb-0">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<form method="post" class="card p-3">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Calibration unit</label>
+      <select class="form-select" name="calibration_unit" required>
+        <option value="">-- select --</option>
+        {% for v in CALIBRATION_UNITS %}
+          <option value="{{v}}" {% if values.calibration_unit == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Light type</label>
+      <select class="form-select" name="light_type" required>
+        <option value="">-- select --</option>
+        {% for v in LIGHT_TYPES %}
+          <option value="{{v}}" {% if values.light_type == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <label class="form-label">Fold mirror type</label>
+      <select class="form-select" name="fold_mirror_type" required>
+        <option value="">-- select --</option>
+        {% for v in FOLD_MIRROR_TYPES %}
+          <option value="{{v}}" {% if values.fold_mirror_type == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Teleposition degree (0-360)</label>
+      <input class="form-control" name="teleposition_degree" type="number" step="0.01" min="0" max="360"
+             value="{{ values.teleposition_degree or '' }}" required>
+    </div>
+
+    <div class="col-md-6">
+      <label class="form-label">Direction</label>
+      <select class="form-select" name="teleposition_direction" required>
+        <option value="">-- select --</option>
+        {% for v in DIRECTIONS %}
+          <option value="{{v}}" {% if values.teleposition_direction == v %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12 d-flex gap-2 pt-2">
+      <button class="btn btn-success" type="submit">Submit</button>
+      <a class="btn btn-outline-secondary" href="/plans/{{plan.id}}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

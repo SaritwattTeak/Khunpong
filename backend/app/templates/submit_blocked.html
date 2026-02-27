@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Submit Observing Program (UC-03)</h3>
+<div class="alert alert-danger">
+  This plan cannot be submitted because it is not validated.
+  Current status: <span class="fw-semibold">{{ plan.status }}</span>.
+</div>
+<a class="btn btn-outline-secondary" href="/plans/{{plan.id}}">Back to Plan</a>
+{% endblock %}
