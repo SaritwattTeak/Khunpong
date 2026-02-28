@@ -34,12 +34,6 @@ from .services import (
 
 app = FastAPI(title="Gemini Project Prototype (Simulation Version)")
 
-# ✅ MUST be added before any middleware uses request.session
-app.add_middleware(
-    SessionMiddleware,
-    secret_key="SUPER_SECRET_KEY_CHANGE_THIS"
-)
-
 templates = Jinja2Templates(directory="app/templates")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -99,6 +93,12 @@ async def auth_middleware(request: Request, call_next):
             return RedirectResponse("/login", status_code=303)
 
     return await call_next(request)
+
+# SessionMiddleware must be added AFTER auth_middleware so it runs outermost first
+app.add_middleware(
+    SessionMiddleware,
+    secret_key="SUPER_SECRET_KEY_CHANGE_THIS"
+)
 
 # ============================================================
 # Startup
