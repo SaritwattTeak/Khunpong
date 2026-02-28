@@ -10,8 +10,27 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
   <div class="container">
     <a class="navbar-brand" href="/">Gemini Prototype</a>
-    <div class="navbar-nav">
-      <a class="nav-link" href="/plans/new">Create Science Plan</a>
+
+    <div class="navbar-nav ms-auto">
+
+      {% if request.session.get("user_id") %}
+        
+        <!-- Show only for Astronomer -->
+        {% if user and user.role == "Astronomer" %}
+          <a class="nav-link" href="/plans/new">Create Science Plan</a>
+        {% endif %}
+
+        <!-- Show user info -->
+        <span class="navbar-text text-light me-3">
+          {{ user.username }} ({{ user.role }})
+        </span>
+
+        <a class="nav-link" href="/logout">Logout</a>
+
+      {% else %}
+        <a class="nav-link" href="/login">Login</a>
+      {% endif %}
+
     </div>
   </div>
 </nav>
