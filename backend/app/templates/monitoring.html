@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Observation Monitoring (UC-05)</h3>
+<p class="text-muted">Read-only view of all submitted observing programs and their statuses.</p>
+
+{% if programs|length == 0 %}
+  <div class="alert alert-info">No observing programs have been submitted yet.</div>
+{% else %}
+  <div class="list-group">
+    {% for prog in programs %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">Program #{{ prog.id }} — <a href="/plans/{{ prog.plan_id }}">Plan #{{ prog.plan_id }}</a></div>
+            <div class="small text-muted">
+              Calibration: {{ prog.calibration_unit }} |
+              Light: {{ prog.light_type }} |
+              Mirror: {{ prog.fold_mirror_type }}
+            </div>
+            <div class="small text-muted">
+              Teleposition: {{ prog.teleposition_degree }}° {{ prog.teleposition_direction }}
+            </div>
+            <div class="small text-muted">Submitted: {{ prog.submitted_at }}</div>
+          </div>
+          <span class="badge {% if prog.status == 'Completed' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+            {{ prog.status }}
+          </span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

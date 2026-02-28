@@ -14,13 +14,19 @@
     <div class="navbar-nav ms-auto">
 
       {% if request.session.get("user_id") %}
-        
-        <!-- Show only for Astronomer -->
+
         {% if user and user.role == "Astronomer" %}
           <a class="nav-link" href="/plans/new">Create Science Plan</a>
         {% endif %}
 
-        <!-- Show user info -->
+        {% if user and user.role == "TelescopeOperator" %}
+          <a class="nav-link" href="/programs">Execute Programs</a>
+        {% endif %}
+
+        {% if user and user.role == "ScienceObserver" %}
+          <a class="nav-link" href="/monitoring">Monitoring</a>
+        {% endif %}
+
         <span class="navbar-text text-light me-3">
           {{ user.username }} ({{ user.role }})
         </span>

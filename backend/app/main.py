@@ -23,9 +23,16 @@ from .constants import (
     FILE_TYPES,
     FILE_QUALITIES,
     IMAGE_MODES,
+    CALIBRATION_UNITS,
+    LIGHT_TYPES,
+    FOLD_MIRROR_TYPES,
+    DIRECTIONS,
 )
 from .services import (
     validate_science_plan_fields,
+    run_virtual_telescope_test,
+    run_official_validation,
+    validate_observing_program_fields,
 )
 
 # ============================================================
@@ -36,6 +43,13 @@ app = FastAPI(title="Gemini Project Prototype (Simulation Version)")
 
 templates = Jinja2Templates(directory="app/templates")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def resolve_star_system(plan: SciencePlan, session: Session) -> dict:
+    """Return plan as a dict with star_system name resolved (Jinja2 dot-notation works on dicts)."""
+    star = session.get(StarSystem, plan.star_system_id)
+    d = plan.model_dump()
+    d["star_system"] = star.name if star else "Unknown"
+    return d
 
 # ============================================================
 # Password Utilities
@@ -110,21 +124,18 @@ def on_startup():
     seed_star_systems()
 
     with Session(engine) as session:
-        if not session.exec(select(User)).first():
-
-            session.add(User(
-                username="astro",
-                password_hash=hash_password("astro123"),
-                role="Astronomer"
-            ))
-
-            session.add(User(
-                username="observer",
-                password_hash=hash_password("observer123"),
-                role="ScienceObserver"
-            ))
-
-            session.commit()
+        for username, password, role in [
+            ("astro",    "astro123",    "Astronomer"),
+            ("observer", "observer123", "ScienceObserver"),
+            ("operator", "operator123", "TelescopeOperator"),
+        ]:
+            if not session.exec(select(User).where(User.username == username)).first():
+                session.add(User(
+                    username=username,
+                    password_hash=hash_password(password),
+                    role=role,
+                ))
+        session.commit()
 
 # ============================================================
 # Login / Logout
@@ -172,9 +183,10 @@ def home(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user)
 ):
-    plans = session.exec(
+    plans_orm = session.exec(
         select(SciencePlan).order_by(SciencePlan.created_at.desc())
     ).all()
+    plans = [resolve_star_system(p, session) for p in plans_orm]
 
     return templates.TemplateResponse(
         "home.html",
@@ -285,3 +297,223 @@ def create_plan(
     session.refresh(plan)
 
     return RedirectResponse(f"/plans/{plan.id}", status_code=303)
+
+# ============================================================
+# Plan Detail (GET /plans/{plan_id})
+# ============================================================
+
+@app.get("/plans/{plan_id}", response_class=HTMLResponse)
+def plan_detail(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    plan = resolve_star_system(plan_orm, session)
+
+    results = session.exec(
+        select(ValidationResult)
+        .where(ValidationResult.plan_id == plan_id)
+        .order_by(ValidationResult.created_at.desc())
+    ).all()
+
+    program = session.exec(
+        select(ObservingProgram).where(ObservingProgram.plan_id == plan_id)
+    ).first()
+
+    return templates.TemplateResponse(
+        "plan_detail.html",
+        {"request": request, "plan": plan, "results": results, "program": program, "user": user},
+    )
+
+# ============================================================
+# UC-02: Virtual Telescope Simulation (Astronomer only)
+# ============================================================
+
+@app.post("/plans/{plan_id}/simulate")
+def simulate_plan(
+    plan_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    _ok, messages = run_virtual_telescope_test(plan_orm)
+    for msg in messages:
+        session.add(ValidationResult(plan_id=plan_id, message=msg))
+    session.commit()
+
+    return RedirectResponse(f"/plans/{plan_id}", status_code=303)
+
+# ============================================================
+# UC-02: Official Validation (Science Observer only)
+# ============================================================
+
+@app.post("/plans/{plan_id}/validate")
+def validate_plan(
+    plan_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("ScienceObserver")),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    approved, messages = run_official_validation(plan_orm)
+    plan_orm.status = "VALID" if approved else "INVALID"
+    plan_orm.updated_at = datetime.utcnow()
+
+    for msg in messages:
+        session.add(ValidationResult(plan_id=plan_id, message=f"[Official] {msg}"))
+    session.add(plan_orm)
+    session.commit()
+
+    return RedirectResponse(f"/plans/{plan_id}", status_code=303)
+
+# ============================================================
+# UC-03: Submit Observing Program (Astronomer only)
+# ============================================================
+
+@app.get("/plans/{plan_id}/submit", response_class=HTMLResponse)
+def submit_program_form(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan_orm.status != "VALID":
+        return templates.TemplateResponse(
+            "submit_blocked.html",
+            {"request": request, "plan": plan_orm, "user": user},
+        )
+
+    return templates.TemplateResponse(
+        "submit_form.html",
+        {
+            "request": request,
+            "plan": plan_orm,
+            "CALIBRATION_UNITS": CALIBRATION_UNITS,
+            "LIGHT_TYPES": LIGHT_TYPES,
+            "FOLD_MIRROR_TYPES": FOLD_MIRROR_TYPES,
+            "DIRECTIONS": DIRECTIONS,
+            "errors": [],
+            "values": {},
+            "user": user,
+        },
+    )
+
+@app.post("/plans/{plan_id}/submit")
+def submit_program(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+    calibration_unit: str = Form(...),
+    light_type: str = Form(...),
+    fold_mirror_type: str = Form(...),
+    teleposition_degree: float = Form(...),
+    teleposition_direction: str = Form(...),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    if plan_orm.status != "VALID":
+        raise HTTPException(status_code=400, detail="Plan must be VALID to submit a program")
+
+    data = dict(
+        calibration_unit=calibration_unit,
+        light_type=light_type,
+        fold_mirror_type=fold_mirror_type,
+        teleposition_degree=teleposition_degree,
+        teleposition_direction=teleposition_direction,
+    )
+
+    ok, errors = validate_observing_program_fields(data)
+    if not ok:
+        return templates.TemplateResponse(
+            "submit_form.html",
+            {
+                "request": request,
+                "plan": plan_orm,
+                "CALIBRATION_UNITS": CALIBRATION_UNITS,
+                "LIGHT_TYPES": LIGHT_TYPES,
+                "FOLD_MIRROR_TYPES": FOLD_MIRROR_TYPES,
+                "DIRECTIONS": DIRECTIONS,
+                "errors": errors,
+                "values": data,
+                "user": user,
+            },
+            status_code=400,
+        )
+
+    session.add(ObservingProgram(plan_id=plan_id, **data))
+    plan_orm.status = "SUBMITTED"
+    plan_orm.updated_at = datetime.utcnow()
+    session.add(plan_orm)
+    session.commit()
+
+    return RedirectResponse(f"/plans/{plan_id}", status_code=303)
+
+# ============================================================
+# UC-04: Execute Observing Program (Telescope Operator only)
+# ============================================================
+
+@app.get("/programs", response_class=HTMLResponse)
+def list_programs(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("TelescopeOperator")),
+):
+    programs = session.exec(
+        select(ObservingProgram).order_by(ObservingProgram.submitted_at.desc())
+    ).all()
+
+    return templates.TemplateResponse(
+        "programs.html",
+        {"request": request, "programs": programs, "user": user},
+    )
+
+@app.post("/programs/{program_id}/execute")
+def execute_program(
+    program_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("TelescopeOperator")),
+):
+    program = session.get(ObservingProgram, program_id)
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    program.status = "Completed"
+    session.add(program)
+    session.commit()
+
+    return RedirectResponse("/programs", status_code=303)
+
+# ============================================================
+# UC-05: Monitor Observation Progress (Science Observer only)
+# ============================================================
+
+@app.get("/monitoring", response_class=HTMLResponse)
+def monitoring(
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("ScienceObserver")),
+):
+    programs = session.exec(
+        select(ObservingProgram).order_by(ObservingProgram.submitted_at.desc())
+    ).all()
+
+    return templates.TemplateResponse(
+        "monitoring.html",
+        {"request": request, "programs": programs, "user": user},
+    )

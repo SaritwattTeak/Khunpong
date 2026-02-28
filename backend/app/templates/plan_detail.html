@@ -9,16 +9,23 @@
   </div>
 
   <div class="d-flex gap-2">
-    <!-- Simulation instead of Validation -->
-    <form method="post" action="/plans/{{plan.id}}/simulate">
-      <button class="btn btn-info" type="submit">
-        Run Simulation (UC-02)
-      </button>
-    </form>
+    {% if user.role == "Astronomer" %}
+      <form method="post" action="/plans/{{ plan.id }}/simulate">
+        <button class="btn btn-info" type="submit">Run Simulation (UC-02)</button>
+      </form>
 
-    <a class="btn btn-success" href="/plans/{{plan.id}}/submit">
-      Submit Program (UC-03)
-    </a>
+      {% if plan.status == "VALID" %}
+        <a class="btn btn-success" href="/plans/{{ plan.id }}/submit">Submit Program (UC-03)</a>
+      {% else %}
+        <span class="btn btn-success disabled" title="Plan must be VALID to submit">Submit Program (UC-03)</span>
+      {% endif %}
+    {% endif %}
+
+    {% if user.role == "ScienceObserver" %}
+      <form method="post" action="/plans/{{ plan.id }}/validate">
+        <button class="btn btn-warning" type="submit">Validate Plan (UC-02)</button>
+      </form>
+    {% endif %}
   </div>
 </div>
 

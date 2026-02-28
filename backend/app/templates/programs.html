@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Observing Programs (UC-04)</h3>
+<p class="text-muted">Execute pending observing programs below.</p>
+
+{% if programs|length == 0 %}
+  <div class="alert alert-info">No observing programs have been submitted yet.</div>
+{% else %}
+  <div class="list-group">
+    {% for prog in programs %}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="fw-semibold">Program #{{ prog.id }} — <a href="/plans/{{ prog.plan_id }}">Plan #{{ prog.plan_id }}</a></div>
+            <div class="small text-muted">
+              Calibration: {{ prog.calibration_unit }} |
+              Light: {{ prog.light_type }} |
+              Mirror: {{ prog.fold_mirror_type }}
+            </div>
+            <div class="small text-muted">
+              Teleposition: {{ prog.teleposition_degree }}° {{ prog.teleposition_direction }}
+            </div>
+            <div class="small text-muted">Submitted: {{ prog.submitted_at }}</div>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2">
+            <span class="badge {% if prog.status == 'Completed' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+              {{ prog.status }}
+            </span>
+            {% if prog.status != "Completed" %}
+              <form method="post" action="/programs/{{ prog.id }}/execute">
+                <button class="btn btn-sm btn-primary" type="submit">Execute</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}
