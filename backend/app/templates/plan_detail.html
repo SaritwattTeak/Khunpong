@@ -19,6 +19,15 @@
       {% else %}
         <span class="btn btn-success disabled" title="Plan must be VALID to submit">Submit Program (UC-03)</span>
       {% endif %}
+
+      {% if plan.status in ("DRAFT", "INVALID") %}
+        <a class="btn btn-secondary" href="/plans/{{ plan.id }}/edit">Edit Plan</a>
+
+        <form method="post" action="/plans/{{ plan.id }}/delete"
+              onsubmit="return confirm('Delete Science Plan #{{ plan.id }}? This cannot be undone.');">
+          <button class="btn btn-danger" type="submit">Delete Plan</button>
+        </form>
+      {% endif %}
     {% endif %}
 
     {% if user.role == "ScienceObserver" %}

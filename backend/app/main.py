@@ -331,6 +331,168 @@ def plan_detail(
     )
 
 # ============================================================
+# Edit Science Plan (Astronomer only — DRAFT or INVALID plans)
+# ============================================================
+
+@app.get("/plans/{plan_id}/edit", response_class=HTMLResponse)
+def edit_plan_form(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan_orm.status not in ("DRAFT", "INVALID"):
+        raise HTTPException(status_code=400, detail="Only DRAFT or INVALID plans can be edited")
+
+    star = session.get(StarSystem, plan_orm.star_system_id)
+    values = plan_orm.model_dump()
+    values["star_system"] = star.name if star else ""
+    values["schedule_start"] = plan_orm.schedule_start.strftime("%Y-%m-%dT%H:%M")
+    values["schedule_end"] = plan_orm.schedule_end.strftime("%Y-%m-%dT%H:%M")
+
+    return templates.TemplateResponse(
+        "plan_edit.html",
+        {
+            "request": request,
+            "plan_id": plan_id,
+            "STAR_SYSTEMS": STAR_SYSTEMS,
+            "TELESCOPE_LOCATIONS": TELESCOPE_LOCATIONS,
+            "FILE_TYPES": FILE_TYPES,
+            "FILE_QUALITIES": FILE_QUALITIES,
+            "IMAGE_MODES": IMAGE_MODES,
+            "errors": [],
+            "values": values,
+            "user": user,
+        },
+    )
+
+
+@app.post("/plans/{plan_id}/edit")
+def edit_plan(
+    plan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+    creator: str = Form(...),
+    submitter: str = Form(...),
+    funding: float = Form(...),
+    objective: str = Form(...),
+    star_system: str = Form(...),
+    schedule_start: str = Form(...),
+    schedule_end: str = Form(...),
+    telescope_location: str = Form(...),
+    file_type: str = Form(...),
+    file_quality: str = Form(...),
+    image_mode: str = Form(...),
+    exposure: int = Form(...),
+    contrast: int = Form(...),
+    brightness: int = Form(...),
+    saturation: int = Form(...),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan_orm.status not in ("DRAFT", "INVALID"):
+        raise HTTPException(status_code=400, detail="Only DRAFT or INVALID plans can be edited")
+
+    errors = []
+
+    star = session.exec(
+        select(StarSystem).where(StarSystem.name == star_system)
+    ).first()
+    if not star:
+        errors.append("Invalid star system selected.")
+
+    def parse_dt(s: str) -> datetime:
+        return datetime.fromisoformat(s)
+
+    data = dict(
+        creator=creator,
+        submitter=submitter,
+        funding=funding,
+        objective=objective,
+        star_system_id=star.id if star else None,
+        schedule_start=parse_dt(schedule_start),
+        schedule_end=parse_dt(schedule_end),
+        telescope_location=telescope_location,
+        file_type=file_type,
+        file_quality=file_quality,
+        image_mode=image_mode,
+        exposure=exposure,
+        contrast=contrast,
+        brightness=brightness,
+        saturation=saturation,
+    )
+
+    ok, field_errors = validate_science_plan_fields(data)
+    if not ok:
+        errors.extend(field_errors)
+
+    if errors:
+        data["star_system"] = star_system
+        data["schedule_start"] = schedule_start
+        data["schedule_end"] = schedule_end
+        return templates.TemplateResponse(
+            "plan_edit.html",
+            {
+                "request": request,
+                "plan_id": plan_id,
+                "STAR_SYSTEMS": STAR_SYSTEMS,
+                "TELESCOPE_LOCATIONS": TELESCOPE_LOCATIONS,
+                "FILE_TYPES": FILE_TYPES,
+                "FILE_QUALITIES": FILE_QUALITIES,
+                "IMAGE_MODES": IMAGE_MODES,
+                "errors": errors,
+                "values": data,
+                "user": user,
+            },
+            status_code=400,
+        )
+
+    for field, value in data.items():
+        setattr(plan_orm, field, value)
+    plan_orm.status = "DRAFT"
+    plan_orm.updated_at = datetime.utcnow()
+    session.add(plan_orm)
+    session.commit()
+
+    return RedirectResponse(f"/plans/{plan_id}", status_code=303)
+
+
+# ============================================================
+# Delete Science Plan (Astronomer only — DRAFT or INVALID plans)
+# ============================================================
+
+@app.post("/plans/{plan_id}/delete")
+def delete_plan(
+    plan_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(require_role("Astronomer")),
+):
+    plan_orm = session.get(SciencePlan, plan_id)
+    if not plan_orm:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan_orm.status not in ("DRAFT", "INVALID"):
+        raise HTTPException(status_code=400, detail="Only DRAFT or INVALID plans can be deleted")
+
+    # Cascade delete related records
+    for result in session.exec(select(ValidationResult).where(ValidationResult.plan_id == plan_id)).all():
+        session.delete(result)
+    for program in session.exec(select(ObservingProgram).where(ObservingProgram.plan_id == plan_id)).all():
+        session.delete(program)
+    session.delete(plan_orm)
+    session.commit()
+
+    return RedirectResponse("/", status_code=303)
+
+
+# ============================================================
 # UC-02: Virtual Telescope Simulation (Astronomer only)
 # ============================================================
 
